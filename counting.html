@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counting Semaphore (Fully Animated)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 20px;
+            color: #333;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="number"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            width: 60px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #5e35b1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #4527a0;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0,0,0,0.15);
+        }
+
+        button:disabled {
+            background-color: #b0bec5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        button#init-btn { background-color: #7e57c2; }
+        button#init-btn:hover:not(:disabled) { background-color: #673ab7; }
+        
+        button#finish-btn { background-color: #66bb6a; }
+        button#finish-btn:hover:not(:disabled) { background-color: #4caf50; }
+        
+        button#reset-btn { background-color: #ef5350; }
+        button#reset-btn:hover:not(:disabled) { background-color: #f44336; }
+
+        .animation-stage {
+            position: relative;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 300px;
+        }
+
+        .section {
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            background: linear-gradient(145deg, #f5f5f5, #e0e0e0);
+            box-shadow: inset 2px 2px 5px #bebebe, inset -2px -2px 5px #ffffff;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #444;
+            z-index: 1;
+        }
+
+        #waiting-queue-area, #cs-processes-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            flex-grow: 1;
+            align-content: flex-start;
+        }
+
+        .process {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(145deg, #42a5f5, #1e88e5);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
+            position: relative; /* For absolute positioning of children if needed */
+            z-index: 10;
+        }
+
+        .process.waiting {
+            background: linear-gradient(145deg, #ff7043, #f4511e);
+            animation: pulse-wait 2s infinite;
+        }
+
+        .process.in-cs {
+            background: linear-gradient(145deg, #66bb6a, #43a047);
+            transform: scale(1.1);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+        
+        .process.moving {
+            z-index: 100; /* Ensure it's on top during animation */
+            transition: top 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94), left 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        .process.exiting {
+            opacity: 0;
+            transform: scale(0.5) rotate(360deg);
+        }
+
+        @keyframes pulse-wait {
+            0% { box-shadow: 0 0 0 0 rgba(255, 112, 67, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 112, 67, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 112, 67, 0); }
+        }
+
+        .semaphore-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            margin-top: 20px;
+            background: linear-gradient(145deg, #e8eaf6, #c5cae9);
+            border-radius: 12px;
+        }
+
+        #semaphore-display {
+            font-size: 3em;
+            font-weight: bold;
+            color: #fff;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 5px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        #semaphore-display.pulse {
+            animation: value-pulse 0.5s ease;
+        }
+        
+        @keyframes value-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        #semaphore-display.available { background: linear-gradient(145deg, #4caf50, #388e3c); }
+        #semaphore-display.full { background: linear-gradient(145deg, #f44336, #d32f2f); }
+        #semaphore-display.waiting { background: linear-gradient(145deg, #ff9800, #f57c00); }
+
+        .explanation {
+            background-color: #e3f2fd;
+            border-left: 5px solid #2196f3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1 style="color: #444;" >Counting Semaphore</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="semaphore-value">Initial Value:</label>
+                <input type="number" id="semaphore-value" value="2" min="1" max="10">
+                <button id="init-btn">Initialize</button>
+            </div>
+            <button id="add-btn" disabled>Add Process (wait())</button>
+            <button id="finish-btn" disabled>Process Finishes (signal())</button>
+            <button id="reset-btn">Reset All</button>
+        </div>
+
+        <div class="animation-stage">
+            <div id="critical-section" class="section">
+                <div class="section-title">Critical Section (Active)</div>
+                <div id="cs-processes-area"></div>
+            </div>
+            <div id="waiting-queue" class="section">
+                <div class="section-title">Waiting Queue (Blocked)</div>
+                <div id="waiting-queue-area"></div>
+            </div>
+        </div>
+
+        <div class="semaphore-container">
+            <div>Semaphore Value:</div>
+            <div id="semaphore-display" class="available">0</div>
+            <div id="semaphore-status">Not Initialized</div>
+        </div>
+
+        <div class="explanation">
+            <h3>How it Works (Classic Model):</h3>
+            <p>This model follows the classic definition where the semaphore value can be negative.</p>
+            <ul>
+                <li><strong>wait() Operation:</strong>
+                    <ul>
+                        <li>The semaphore value is <strong>always</strong> decremented by 1.</li>
+                        <li>If the new value is <strong>&gt;= 0</strong>, the process proceeds to the Critical Section.</li>
+                        <li>If the new value is <strong>&lt; 0</strong>, the process is blocked and added to the waiting queue.</li>
+                    </ul>
+                </li>
+                <li><strong>signal() Operation:</strong>
+                    <ul>
+                        <li>The semaphore value is <strong>always</strong> incremented by 1.</li>
+                        <li>If the new value is <strong>&lt;= 0</strong>, it means there were processes waiting. The first process in the waiting queue is woken up and <strong>visibly moves</strong> to the Critical Section.</li>
+                        <li>If the new value is <strong>&gt; 0</strong>, it simply means a resource has become available.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const initBtn = document.getElementById('init-btn');
+            const addBtn = document.getElementById('add-btn');
+            const finishBtn = document.getElementById('finish-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const semaphoreValueInput = document.getElementById('semaphore-value');
+            const csAreaEl = document.getElementById('cs-processes-area');
+            const waitingAreaEl = document.getElementById('waiting-queue-area');
+            const semaphoreDisplayEl = document.getElementById('semaphore-display');
+            const semaphoreStatusEl = document.getElementById('semaphore-status');
+
+            // State Variables
+            let processIdCounter = 1;
+            let semaphoreValue = 0;
+            const processesInCs = [];
+            const waitingQueue = [];
+
+            // --- Core Semaphore Logic ---
+
+            function updateSemaphoreVisual() {
+                semaphoreDisplayEl.classList.remove('pulse');
+                void semaphoreDisplayEl.offsetWidth; // Trigger reflow
+                semaphoreDisplayEl.classList.add('pulse');
+                
+                semaphoreDisplayEl.textContent = semaphoreValue;
+                
+                if (semaphoreValue > 0) {
+                    semaphoreStatusEl.textContent = `${semaphoreValue} resource(s) available.`;
+                    semaphoreDisplayEl.className = 'available';
+                } else if (semaphoreValue === 0) {
+                    semaphoreStatusEl.textContent = `All resources in use. No one is waiting.`;
+                    semaphoreDisplayEl.className = 'full';
+                } else { // semaphoreValue < 0
+                    const numWaiting = Math.abs(semaphoreValue);
+                    semaphoreStatusEl.textContent = `All resources in use. ${numWaiting} process(es) waiting.`;
+                    semaphoreDisplayEl.className = 'waiting';
+                }
+            }
+
+            function wait(processEl) {
+                semaphoreValue--;
+                if (semaphoreValue >= 0) {
+                    enterCriticalSection(processEl);
+                } else {
+                    addToWaitingQueue(processEl);
+                }
+                updateSemaphoreVisual();
+            }
+
+            function signal() {
+                semaphoreValue++;
+                if (semaphoreValue <= 0) {
+                    const nextProcess = waitingQueue.shift();
+                    if (nextProcess) {
+                        moveProcessToCs(nextProcess);
+                    }
+                }
+                updateSemaphoreVisual();
+            }
+
+            // --- Process Management & Animation ---
+
+            function createProcess() {
+                const processEl = document.createElement('div');
+                processEl.className = 'process';
+                processEl.id = `process-${processIdCounter}`;
+                processEl.textContent = `P${processIdCounter}`;
+                processIdCounter++;
+                wait(processEl);
+            }
+
+            function enterCriticalSection(processEl) {
+                processesInCs.push(processEl);
+                processEl.className = 'process in-cs';
+                csAreaEl.appendChild(processEl);
+                finishBtn.disabled = false;
+            }
+            
+            function moveProcessToCs(processEl) {
+                // Remove from waiting queue array and visual area
+                const index = waitingQueue.indexOf(processEl);
+                if (index > -1) {
+                    waitingQueue.splice(index, 1);
+                }
+                
+                // Get start and end positions
+                const startRect = processEl.getBoundingClientRect();
+                const csAreaRect = csAreaEl.getBoundingClientRect();
+                
+                // Calculate target position (top-left corner of the CS area)
+                const endX = csAreaRect.left + window.scrollX;
+                const endY = csAreaRect.top + window.scrollY;
+
+                // Set initial position and start animation
+                processEl.classList.add('moving');
+                processEl.style.position = 'fixed';
+                processEl.style.left = `${startRect.left + window.scrollX}px`;
+                processEl.style.top = `${startRect.top + window.scrollY}px`;
+                document.body.appendChild(processEl); // Move to body for full-page travel
+
+                requestAnimationFrame(() => {
+                    processEl.style.left = `${endX}px`;
+                    processEl.style.top = `${endY}px`;
+                });
+
+                // After animation, place it correctly in the CS
+                processEl.addEventListener('transitionend', () => {
+                    processEl.classList.remove('moving', 'waiting');
+                    processEl.classList.add('in-cs');
+                    processEl.style.position = ''; // Reset position
+                    processEl.style.left = ''; // Reset position
+                    processEl.style.top = ''; // Reset position
+                    csAreaEl.appendChild(processEl); // Add to its final home
+                    processesInCs.push(processEl);
+                    finishBtn.disabled = false;
+                }, { once: true });
+            }
+
+
+            function leaveCriticalSection() {
+                if (processesInCs.length === 0) return;
+
+                const processToRemove = processesInCs.shift();
+                processToRemove.classList.add('exiting');
+
+                setTimeout(() => {
+                    processToRemove.remove();
+                    signal();
+                    if (processesInCs.length === 0) {
+                        finishBtn.disabled = true;
+                    }
+                }, 500);
+            }
+            
+            function addToWaitingQueue(processEl) {
+                waitingQueue.push(processEl);
+                processEl.className = 'process waiting';
+                waitingAreaEl.appendChild(processEl);
+            }
+            
+            // --- Simulation Control ---
+
+            function initializeSemaphore() {
+                resetAll(false);
+                semaphoreValue = parseInt(semaphoreValueInput.value, 10);
+                updateSemaphoreVisual();
+                
+                addBtn.disabled = false;
+                initBtn.disabled = true;
+                semaphoreValueInput.disabled = true;
+            }
+
+            function resetAll(clearInput = true) {
+                addBtn.disabled = true;
+                finishBtn.disabled = true;
+                initBtn.disabled = false;
+                semaphoreValueInput.disabled = false;
+
+                processIdCounter = 1;
+                semaphoreValue = 0;
+                processesInCs.length = 0;
+                waitingQueue.length = 0;
+
+                csAreaEl.innerHTML = '';
+                waitingAreaEl.innerHTML = '';
+                
+                if(clearInput) {
+                   semaphoreValueInput.value = 2;
+                }
+
+                updateSemaphoreVisual();
+                semaphoreStatusEl.textContent = 'Not Initialized';
+                semaphoreDisplayEl.className = '';
+            }
+
+            // --- Event Listeners for User Control ---
+
+            initBtn.addEventListener('click', initializeSemaphore);
+            addBtn.addEventListener('click', createProcess);
+            finishBtn.addEventListener('click', leaveCriticalSection);
+            resetBtn.addEventListener('click', () => resetAll(true));
+
+            // Initial state
+            resetAll(true);
+        });
+    </script>
+</body>
+</html>

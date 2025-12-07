@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Semaphore Visualizer (Instructor Control)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #1a237e;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        button {
+            background-color: #3949ab;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #303f9f;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background-color: #9e9e9e;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        button#finish-btn {
+            background-color: #66bb6a;
+        }
+        
+        button#finish-btn:hover:not(:disabled) {
+            background-color: #4caf50;
+        }
+
+        .stage {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            font-size: 18px;
+        }
+
+        .section {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 150px;
+            position: relative;
+            background-color: #fafafa;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        #process-queue {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #waiting-queue {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .process {
+            width: 60px;
+            height: 60px;
+            background-color: #42a5f5;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.5s ease-in-out;
+            position: relative;
+        }
+
+        .process.waiting {
+            background-color: #ff7043;
+            animation: pulse 1.5s infinite;
+        }
+
+        .process.in-cs {
+            background-color: #66bb6a;
+            transform: scale(1.1);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .semaphore-container {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background-color: #e8eaf6;
+            border-radius: 8px;
+        }
+
+        #semaphore {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 5px solid #333;
+            transition: background-color 0.5s ease;
+        }
+
+        #semaphore.unlocked {
+            background-color: #4caf50; /* Green */
+            box-shadow: 0 0 20px #4caf50;
+        }
+
+        #semaphore.locked {
+            background-color: #f44336; /* Red */
+            box-shadow: 0 0 20px #f44336;
+        }
+        
+        .explanation {
+            grid-column: 1 / -1;
+            background-color: #e3f2fd;
+            border-left: 5px solid #2196f3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Binary Semaphore Visualizer</h1>
+
+        <div class="controls">
+            <button id="add-btn">Add Process</button>
+            <button id="finish-btn" disabled>Process in CS Finishes</button>
+        </div>
+
+        <div class="stage">
+            <div id="process-queue" class="section">
+                <div class="section-title">New Processes (Ready to Try)</div>
+            </div>
+            <div id="critical-section" class="section">
+                <div class="section-title">Critical Section (Only 1 Process Allowed)</div>
+            </div>
+            <div id="waiting-queue" class="section">
+                <div class="section-title">Waiting Queue (Blocked Processes)</div>
+            </div>
+        </div>
+
+        <div class="semaphore-container">
+            <div>Semaphore State:</div>
+            <div id="semaphore" class="unlocked"></div>
+            <div id="semaphore-status">Unlocked (Value: 1)</div>
+        </div>
+
+        <div class="explanation">
+            <h3>How to Use:</h3>
+            <ol>
+                <li><strong>Add Process:</strong> Click this button to create a new process (P1, P2, etc.). The process will immediately try to enter the Critical Section.</li>
+                <li><strong>Process in CS Finishes:</strong> When a process is inside the Critical Section, this button becomes active. Click it to simulate the process completing its work. This will trigger the <code>signal()</code> operation, potentially allowing another process to enter.</li>
+            </ol>
+            <h3>What's Happening Behind the Scenes?</h3>
+            <ul>
+                <li><strong>wait() operation:</strong> When a process is added, it performs a <code>wait()</code>. If the semaphore is green (unlocked), it turns red (locked) and the process enters. If it's already red, the process is added to the Waiting Queue.</li>
+                <li><strong>signal() operation:</strong> When you click "Process in CS Finishes", the process performs a <code>signal()</code>. If the Waiting Queue is not empty, the first process in line is allowed to enter. If the queue is empty, the semaphore turns green (unlocked).</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const addBtn = document.getElementById('add-btn');
+            const finishBtn = document.getElementById('finish-btn');
+            const processQueueEl = document.getElementById('process-queue');
+            const criticalSectionEl = document.getElementById('critical-section');
+            const waitingQueueEl = document.getElementById('waiting-queue');
+            const semaphoreEl = document.getElementById('semaphore');
+            const semaphoreStatusEl = document.getElementById('semaphore-status');
+
+            let processIdCounter = 1;
+            let isLocked = false; // Semaphore state: false (unlocked), true (locked)
+            let processInCs = null; // The process element currently in the critical section
+            const waitingQueue = []; // FIFO queue for waiting processes
+
+            // --- Core Semaphore Logic ---
+
+            function updateSemaphoreVisual() {
+                if (isLocked) {
+                    semaphoreEl.className = 'locked';
+                    semaphoreStatusEl.textContent = 'Locked (Value: 0)';
+                } else {
+                    semaphoreEl.className = 'unlocked';
+                    semaphoreStatusEl.textContent = 'Unlocked (Value: 1)';
+                }
+            }
+
+            // The wait() operation (P operation)
+            function wait(processEl) {
+                if (!isLocked) {
+                    // CRITICAL SECTION IS FREE
+                    isLocked = true;
+                    updateSemaphoreVisual();
+                    enterCriticalSection(processEl);
+                } else {
+                    // CRITICAL SECTION IS BUSY
+                    addToWaitingQueue(processEl);
+                }
+            }
+
+            // The signal() operation (V operation)
+            function signal() {
+                if (waitingQueue.length > 0) {
+                    // There are processes waiting, pass the lock directly
+                    const nextProcess = waitingQueue.shift(); // FIFO
+                    enterCriticalSection(nextProcess);
+                } else {
+                    // No one is waiting, release the lock
+                    isLocked = false;
+                    updateSemaphoreVisual();
+                }
+            }
+
+            // --- Process Management & Animation ---
+
+            function createProcess() {
+                const processEl = document.createElement('div');
+                processEl.className = 'process';
+                processEl.id = `process-${processIdCounter}`;
+                processEl.textContent = `P${processIdCounter}`;
+                processIdCounter++;
+                processQueueEl.appendChild(processEl);
+                
+                // Immediately attempt to enter the critical section
+                wait(processEl);
+            }
+
+            function enterCriticalSection(processEl) {
+                if (processInCs) return; // Safety check
+
+                processInCs = processEl;
+                processEl.className = 'process in-cs';
+                criticalSectionEl.appendChild(processEl);
+                
+                // Enable the button to allow the instructor to finish the process
+                finishBtn.disabled = false;
+            }
+
+            function leaveCriticalSection() {
+                if (!processInCs) return; // Safety check, should not be called if CS is empty
+
+                const processToRemove = processInCs;
+                processInCs = null; // Clear the reference before removing
+                processToRemove.remove();
+                
+                // Disable the button as the CS is now empty
+                finishBtn.disabled = true;
+                
+                // Signal the semaphore that the process is done
+                signal();
+            }
+            
+            function addToWaitingQueue(processEl) {
+                waitingQueue.push(processEl);
+                processEl.className = 'process waiting';
+                waitingQueueEl.appendChild(processEl);
+            }
+
+            // --- Event Listeners for User Control ---
+
+            addBtn.addEventListener('click', createProcess);
+            finishBtn.addEventListener('click', leaveCriticalSection);
+
+            // Initial state
+            updateSemaphoreVisual();
+        });
+    </script>
+</body>
+</html>
